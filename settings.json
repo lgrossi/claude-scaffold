@@ -1,0 +1,59 @@
+{
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "300000",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "ENABLE_LSP_TOOL": "1",
+    "GIT_USERNAME": "lucas"
+  },
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "deny": [],
+    "defaultMode": "bypassPermissions"
+  },
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ct notify"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "uv run ~/.claude/statusline.py",
+    "padding": 0
+  },
+  "enabledPlugins": {
+    "clangd-lsp@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true,
+    "gt@local": true,
+    "commons@local": true,
+    "mollie@local": true
+  },
+  "extraKnownMarketplaces": {
+    "local": {
+      "source": {
+        "source": "directory",
+        "path": "/home/lgrossi/.claude/local-plugins"
+      }
+    }
+  },
+  "alwaysThinkingEnabled": true,
+  "promptSuggestionEnabled": true,
+  "skipDangerousModePermissionPrompt": true,
+  "model": "opus[1m]",
+  "security": {
+    "auth": {
+      "selectedType": "oauth-personal"
+    }
+  }
+}

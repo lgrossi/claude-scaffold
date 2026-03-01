@@ -1,0 +1,47 @@
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+*.out
+*.err
+
+# Temp
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Cache
+.cache/
+cache/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Claude Code runtime state
+shell-snapshots/
+session-env/
+todos/
+projects/
+history.jsonl
+file-history/
+debug/
+paste-cache/
+plans/
+stats-cache.json
+tasks/
+teams/
+backups/
+/plugins/
+
+# Build artifacts
+tools/target/
