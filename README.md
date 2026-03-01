@@ -100,13 +100,58 @@ ln -sf $HOME/AI/commons $HOME/.claude/local-plugins/plugins/commons
 Global rules loaded into every session:
 
 - `git.md` — commit format, branch naming, fixup workflow
-- `search-tools.md` — tool hierarchy (Grep > Glob > rg/fd > ck)
-- `subagent-trust.md` — adversarial verification of subagent output
-- `markup.md` — formatting conventions
+- `markup.md` — semantic line break conventions
+
+Plugin rules are injected via session-start hooks
+(each plugin `cat`s its own `rules/*.md` on startup).
 
 ### Tools
 
 - **ct** — Rust CLI for notifications, task management, and session utilities
+
+## Day-to-day operations
+
+### Refresh a plugin after changes
+
+After pulling or editing a plugin repo:
+
+```bash
+claude plugin install commons@local
+```
+
+This clears the cache and reloads all skills, hooks, and rules.
+
+### Add a new plugin
+
+1. Clone or create the plugin repo
+2. Symlink it into the marketplace:
+   ```bash
+   ln -sf $HOME/AI/my-plugin $HOME/.claude/local-plugins/plugins/my-plugin
+   ```
+3. Add the entry to `local-plugins/.claude-plugin/marketplace.json`
+4. Enable it in `settings.json` under `enabledPlugins`
+5. Install: `claude plugin install my-plugin@local`
+
+### Add a rule to a plugin
+
+Create `rules/my-rule.md` in the plugin repo with path-scoped frontmatter:
+
+```markdown
+---
+paths:
+  - "**/*.py"
+---
+
+Your rule content here.
+```
+
+The plugin's session-start hook will inject it automatically.
+Run `claude plugin install <plugin>@local` to pick it up.
+
+### Add a skill to a plugin
+
+Create `skills/my-skill/SKILL.md` in the plugin repo.
+Run `claude plugin install <plugin>@local` to pick it up.
 
 ## Adapting this for yourself
 
