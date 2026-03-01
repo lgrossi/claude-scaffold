@@ -43,5 +43,8 @@ teams/
 backups/
 /plugins/
 
+# Generated
+icons/
+
 # Build artifacts
 tools/target/

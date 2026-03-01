@@ -1,0 +1,27 @@
+{
+  "name": "local",
+  "description": "Local plugins",
+  "owner": {
+    "name": "Lucas"
+  },
+  "plugins": [
+    {
+      "name": "gt",
+      "description": "Graphite CLI wrapper for stacked branch management — create, navigate, modify, sync, restack, submit, and push stacked PRs",
+      "source": "./plugins/gt",
+      "category": "productivity"
+    },
+    {
+      "name": "commons",
+      "description": "Personal Claude Code configuration — skills, rules, and agents",
+      "source": "./plugins/commons",
+      "category": "productivity"
+    },
+    {
+      "name": "mollie",
+      "description": "Mollie engineering conventions, skills, and tooling — shared across all Mollie projects",
+      "source": "./plugins/mollie",
+      "category": "productivity"
+    }
+  ]
+}
