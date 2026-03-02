@@ -31,6 +31,11 @@
 - Don't close/delete PRs, issues, comments — update in place.
 - Shared/visible systems: additive fixes > destructive.
 
+## Plugins
+
+- Source: `$HOME/AI/<plugin>/`. Cache: `$HOME/.claude/plugins/cache/` (read-only copy).
+- Never edit under `plugins/cache/`. Edit source → commit → `claude plugins update <name>@local`.
+
 ## Memory
 
 - Never auto-memory (`projects/*/memory/`). Not version-controlled.
