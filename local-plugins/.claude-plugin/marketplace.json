@@ -16,12 +16,6 @@
       "description": "Personal Claude Code configuration — skills, rules, and agents",
       "source": "./plugins/commons",
       "category": "productivity"
-    },
-    {
-      "name": "mollie",
-      "description": "Mollie engineering conventions, skills, and tooling — shared across all Mollie projects",
-      "source": "./plugins/mollie",
-      "category": "productivity"
     }
   ]
 }

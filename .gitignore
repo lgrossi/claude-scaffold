@@ -43,6 +43,9 @@ teams/
 backups/
 /plugins/
 
+# Mollie rules (personal, not version-controlled)
+rules/mollie/
+
 # Generated
 icons/
 

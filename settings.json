@@ -10,6 +10,7 @@
     "deny": [],
     "defaultMode": "bypassPermissions"
   },
+  "model": "sonnet[1m]",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "Notification": [
@@ -31,13 +32,15 @@
   "enabledPlugins": {
     "clangd-lsp@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
-    "gopls-lsp@claude-plugins-official": true,
+    "php-lsp@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true,
     "gt@local": true,
     "commons@local": true,
-    "mollie@local": true
+    "atlassian@claude-plugins-official": true,
+    "mdp@mollie-claude-plugins": true,
+    "pubsub@mollie-claude-plugins": true,
+    "gopls-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "local": {
@@ -50,7 +53,6 @@
   "alwaysThinkingEnabled": true,
   "promptSuggestionEnabled": true,
   "skipDangerousModePermissionPrompt": true,
-  "model": "opus[1m]",
   "security": {
     "auth": {
       "selectedType": "oauth-personal"
