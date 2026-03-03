@@ -33,8 +33,8 @@
 
 ## Plugins
 
-- Source: `$HOME/AI/<plugin>/`. Cache: `$HOME/.claude/plugins/cache/` (read-only copy).
-- Never edit under `plugins/cache/`. Edit source → commit → `claude plugins update <name>@local`.
+- Cache: `$HOME/.claude/plugins/cache/` (read-only copy). Never edit under `plugins/cache/`.
+- `rules/mollie/` contains Mollie-specific rules (branching, Jira, GitLab, Slack). Treat as normal rules — they are loaded automatically like any other file under `rules/`.
 
 ## Memory
 
@@ -54,7 +54,7 @@ TDD default. Standards in `rules/test-quality.md`.
 
 ## Graphite & PR Workflow (gt plugin)
 
-- When gt plugin is enabled: all branch operations go through `/gt:gt`. Never raw `git rebase`, `git push`, `git branch -d`, `git checkout -b`.
+- When gt plugin is enabled: all branch operations go through `/gt:gt`. Never raw `git rebase`, `git branch -d`, `git checkout -b`. Stacked branches: push via `/gt:submit`, not `git push`. Trunk: `git push` allowed.
 - Push → `/gt:submit`. Restack → `/gt:restack`. Commit → `/commit`.
 - Return `app.graphite.com/...` URLs, not GitHub.
 - Review scope: diff vs stack parent (`gt log`), not trunk.
@@ -62,9 +62,9 @@ TDD default. Standards in `rules/test-quality.md`.
 
 ## Skill Flow
 
-brainstorm → explore → prepare → implement [acceptance] → test-plan → commit
-Optional: split-commit (repackage messy WIP), review (adversarial), refine (polish code).
-After explore: `/prepare <id>`. After prepare: `/implement <epic-id>`.
+brainstorm → scope → develop [acceptance] → test-plan → commit
+Optional: split-commit (repackage messy WIP), review (adversarial).
+After scope: `/develop t<id>`. scope→develop is automatic inside /vibe.
 
 ## Natural Language Routing
 
@@ -73,9 +73,13 @@ When user input doesn't start with `/`, check if it maps to a skill by matching 
 - **Ambiguous** (2-3 plausible candidates): AskUserQuestion listing candidates with brief descriptions.
 - **No match**: respond normally without skill invocation.
 
+## Jira
+
+Project: MPM | Board: https://mollie.atlassian.net/jira/software/projects/MPM/boards/321
+
 ## Branch Naming
 
-`$GIT_USERNAME/<description>` (e.g. `lucas/fix-container-minimize`). Use `gt create` if gt plugin is enabled, `git checkout -b` otherwise.
+`$GIT_USERNAME/<ticket-id>-<description>` — see `rules/branching.md`. Every branch requires a Jira ticket — see `rules/jira.md` for obtaining one. Use `gt create` if gt plugin is enabled, `git checkout -b` otherwise.
 
 ## Session End
 
@@ -84,7 +88,7 @@ When user input doesn't start with `/`, check if it maps to a skill by matching 
 
 ## Session Resume
 
-On resume after compaction: if tasks exist with `metadata.impl_team` set and status `in_progress`, re-invoke `/implement` to trigger recovery.
+On resume after compaction: if tasks exist with `metadata.impl_team` set and status `in_progress`, re-invoke `/develop` to trigger recovery.
 
 ## Tasks
 
