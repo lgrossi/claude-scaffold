@@ -46,6 +46,9 @@ backups/
 # Mollie rules (personal, not version-controlled)
 rules/mollie/
 
+# WIP skills (not ready to publish)
+skills/voice/
+
 # Generated
 icons/
 
