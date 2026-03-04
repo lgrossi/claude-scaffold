@@ -2,6 +2,7 @@
   "env": {
     "BASH_DEFAULT_TIMEOUT_MS": "300000",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_TASK_LIST_ID": "lucas-experimentation",
     "ENABLE_LSP_TOOL": "1",
     "GIT_USERNAME": "lucas"
   },
@@ -10,7 +11,7 @@
     "deny": [],
     "defaultMode": "bypassPermissions"
   },
-  "model": "sonnet[1m]",
+  "model": "sonnet",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "Notification": [
@@ -30,17 +31,14 @@
     "padding": 0
   },
   "enabledPlugins": {
-    "clangd-lsp@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
     "php-lsp@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
     "gt@local": true,
     "commons@local": true,
-    "atlassian@claude-plugins-official": true,
     "mdp@mollie-claude-plugins": true,
-    "pubsub@mollie-claude-plugins": true,
-    "gopls-lsp@claude-plugins-official": true
+    "pubsub@mollie-claude-plugins": true
   },
   "extraKnownMarketplaces": {
     "local": {
