@@ -11,7 +11,7 @@
     "deny": [],
     "defaultMode": "bypassPermissions"
   },
-  "model": "opus[1m]",
+  "model": "sonnet",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "Notification": [
@@ -20,6 +20,17 @@
           {
             "type": "command",
             "command": "ct notify"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/check-slack-cookie.py"
           }
         ]
       }
@@ -47,7 +58,8 @@
       "source": {
         "source": "directory",
         "path": "/home/lgrossi/.claude/local-plugins"
-      }
+      },
+      "autoUpdate": true
     }
   },
   "alwaysThinkingEnabled": true,
