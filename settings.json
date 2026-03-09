@@ -11,7 +11,7 @@
     "deny": [],
     "defaultMode": "bypassPermissions"
   },
-  "model": "sonnet",
+  "model": "opus[1m]",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "Notification": [
@@ -38,7 +38,9 @@
     "gt@local": true,
     "commons@local": true,
     "mdp@mollie-claude-plugins": true,
-    "pubsub@mollie-claude-plugins": true
+    "pubsub@mollie-claude-plugins": true,
+    "skills-forger@mollie-claude-plugins": true,
+    "product@mollie-claude-plugins": true
   },
   "extraKnownMarketplaces": {
     "local": {
@@ -51,6 +53,7 @@
   "alwaysThinkingEnabled": true,
   "promptSuggestionEnabled": true,
   "skipDangerousModePermissionPrompt": true,
+  "teammateMode": "tmux",
   "security": {
     "auth": {
       "selectedType": "oauth-personal"
