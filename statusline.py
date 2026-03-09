@@ -3,6 +3,7 @@
 
 import json, os, sys, subprocess, time
 from datetime import datetime, timezone
+from pathlib import Path
 
 # Ayu Dark palette
 GREEN = "\033[38;5;114m"
@@ -25,6 +26,11 @@ SUBSCRIPT = str.maketrans(
     "0123456789.aehijklmnoprstuvx",
     "₀₁₂₃₄₅₆₇₈₉.ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ",
 )
+
+INSIGHTS_FILE = Path.home() / ".claude" / "memory" / "jarvis" / "pending-insights.json"
+STRATEGIES_FILE = Path.home() / ".claude" / "memory" / "jarvis" / "active-strategies.json"
+INSIGHTS_CACHE = "/tmp/claude-statusline-insights"
+INSIGHTS_TTL = 30
 
 GIT_CACHE = "/tmp/claude-statusline-git"
 GIT_TTL = 5
@@ -276,6 +282,66 @@ def fetch_usage():
     return None
 
 
+def _is_actionable(insight):
+    """An insight is actionable if it has an action that isn't purely informational."""
+    action = insight.get("action") or ""
+    return bool(action) and "no further action needed" not in action.lower() and "for awareness" not in action.lower()
+
+
+def jarvis_insight_indicator():
+    """Statusline: 🔭 strategy | 🎯 priorities | 💡 insights | 📋 notes | ⏳ pending - /brief"""
+    try:
+        cached = read_cache(INSIGHTS_CACHE, INSIGHTS_TTL)
+        if cached is not None:
+            return cached or None
+
+        parts = []
+
+        # Strategies (persistent, from active-strategies.json)
+        if STRATEGIES_FILE.exists():
+            strategies = json.loads(STRATEGIES_FILE.read_text())
+            if strategies:
+                n = len(strategies)
+                parts.append(f"{PURPLE}🔭 {n} strateg{'ies' if n != 1 else 'y'}{RESET}")
+
+        # Insights (queue, from pending-insights.json)
+        new_insights = []
+        pending_actions = []
+        if INSIGHTS_FILE.exists():
+            insights = json.loads(INSIGHTS_FILE.read_text())
+            for i in insights:
+                if not i.get("surfaced_at"):
+                    new_insights.append(i)
+                elif not i.get("acted_at") and _is_actionable(i):
+                    pending_actions.append(i)
+
+        if not parts and not new_insights and not pending_actions:
+            write_cache(INSIGHTS_CACHE, "")
+            return None
+
+        # New insights by urgency
+        red = sum(1 for i in new_insights if i.get("urgency") == "red")
+        orange = sum(1 for i in new_insights if i.get("urgency") == "orange")
+        green = sum(1 for i in new_insights if i.get("urgency") == "green")
+        if red:
+            parts.append(f"{RED}🎯 {red} priorit{'ies' if red != 1 else 'y'}{RESET}")
+        if orange:
+            parts.append(f"{ORANGE}💡 {orange} insight{'s' if orange != 1 else ''}{RESET}")
+        if green:
+            parts.append(f"{GREEN}📋 {green} note{'s' if green != 1 else ''}{RESET}")
+
+        # Pending actions (surfaced but not acted on)
+        if pending_actions:
+            n = len(pending_actions)
+            parts.append(f"{YELLOW}⏳ {n} pending{RESET}")
+
+        result = f"{' | '.join(parts)} | /brief"
+        write_cache(INSIGHTS_CACHE, result)
+        return result
+    except Exception:
+        return None
+
+
 def beads_task(cwd, sid=""):
     if not cwd or not sid:
         return None
@@ -378,6 +444,10 @@ def main():
         if sd_reset_str:
             sd_label += f" {DIM}{sd_reset_str}{RESET}"
         parts2.append(sd_label)
+
+    jarvis = jarvis_insight_indicator()
+    if jarvis:
+        parts2.append(jarvis)
 
     if vim:
         parts2.append(f"{PURPLE} {vim['mode']}{RESET}")
