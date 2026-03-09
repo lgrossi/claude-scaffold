@@ -58,3 +58,6 @@ icons/
 # Build artifacts
 tools/target/
 .credentials.json
+# Jarvis runtime data (generated, machine-specific)
+memory/jarvis/
+secrets/
