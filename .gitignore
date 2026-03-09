@@ -49,6 +49,9 @@ rules/mollie/
 # WIP skills (not ready to publish)
 skills/as-me/
 
+# Skill workspaces (runtime artifacts)
+**/*-workspace/
+
 # Generated
 icons/
 
