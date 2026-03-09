@@ -255,7 +255,9 @@ in the session data, do NOT re-surface it as an insight.
 - No artificial cap. Could be 3, could be 15, could be 25 — inspect the data and report everything that meets the bar.
 - Group recurring patterns — 5 sessions with the same issue = 1 insight not 5.
 - Cross-reference acted-on hints — don't re-surface fixed issues.
-- auto-fix: Claude can do alone. needs-user: say what collaboration is needed.
+- action prefix rules — default is auto-fix:
+  - auto-fix: Claude can execute without asking. Editing a file, adding a rule, creating a skill, writing documentation, fixing a pattern, adding a hook — all auto-fix.
+  - needs-user: ONLY when the action requires something Claude cannot provide: a policy call with real tradeoffs, a priority/cost decision, external approval, or information only the user has. "Should we build X?" is needs-user. "Add rule X to file Y" is auto-fix. If in doubt, use auto-fix — the user can always say "don't do that."
 - red: system health, 3+ week recurrence, strategic. orange: actionable recurring. green: trend with recommendation.
 <<<END_INSIGHTS>>>
 """)

@@ -1,0 +1,75 @@
+{
+  "version": "1.0",
+  "skill": "skills/brief",
+  "cases": [
+    {
+      "id": "brief-001",
+      "description": "Self-referential auto-dismiss: insight about a tool that is visibly running right now should be dismissed without surfacing",
+      "prompt": "You are Claude running the /brief skill. The pending-insights.json contains the following new insight (surfaced_at is null):\n\n{\n  \"id\": \"test-001\",\n  \"urgency\": \"red\",\n  \"source\": \"daily-analyzer\",\n  \"title\": \"Jarvis insight generation sometimes produces 0 outputs\",\n  \"body\": \"The insight runner occasionally produces empty output or 0 insights due to model confusion about the section-marker format.\",\n  \"action\": \"needs-user: Decide if current ~60% consistency is acceptable or if a two-pass approach is worth the extra cost.\",\n  \"surfaced_at\": null\n}\n\nContext: You are currently executing the /brief skill and have just read 11 insights from pending-insights.json successfully. The pipeline is visibly working in this session.\n\nDemonstrate your step 3C verification for this insight.",
+      "files": [],
+      "expectations": [
+        {
+          "criterion": "auto-dismisses-self-referential",
+          "description": "Recognises that the insight describes a failure mode in a tool (insight generation) that is visibly functioning right now — the current /brief run is producing output — and dismisses the insight without surfacing it to the user",
+          "required": true
+        },
+        {
+          "criterion": "states-observable-evidence",
+          "description": "Explicitly cites the current run's successful execution as the evidence for dismissal — does not just say 'resolved' without explaining why",
+          "required": true
+        },
+        {
+          "criterion": "does-not-surface-as-red",
+          "description": "Does not show this insight in the PRIORITIES (red) section as a new item requiring user decision",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "brief-002",
+      "description": "Abandoned approach auto-dismiss: insight about improving an approach the user explicitly discarded should be dismissed",
+      "prompt": "You are Claude running the /brief skill. The pending-insights.json contains the following new insight (surfaced_at is null):\n\n{\n  \"id\": \"test-002\",\n  \"urgency\": \"red\",\n  \"source\": \"daily-analyzer\",\n  \"title\": \"Deploy skill timing still too slow for acceptable UX\",\n  \"body\": \"The full deploy flow takes 2+ minutes. Consider pre-computing state in a single bash script to eliminate Claude round-trips.\",\n  \"action\": \"needs-user: Decide whether to pre-compute state in a single large bash script.\",\n  \"surfaced_at\": null\n}\n\nSession context you have: In a prior session, the user discussed this deploy skill approach with a colleague and stated explicitly: 'this isn't good enough, we're not going with this approach.' There are also MR comments reflecting this decision.\n\nDemonstrate your step 3C verification for this insight.",
+      "files": [],
+      "expectations": [
+        {
+          "criterion": "auto-dismisses-abandoned-approach",
+          "description": "Recognises that the user explicitly decided to abandon this approach ('not going with this') and dismisses the insight — the problem is moot, not pending resolution",
+          "required": true
+        },
+        {
+          "criterion": "cites-abandonment-decision",
+          "description": "Explicitly cites the user's abandonment statement as the reason for dismissal — does not just say 'resolved' without explaining why",
+          "required": true
+        },
+        {
+          "criterion": "does-not-surface-as-pending",
+          "description": "Does not show this insight as a red priority or pending action requiring user input",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "brief-003",
+      "description": "Tentative phrasing reclassification: 'consider whether to build X' where X is buildable should become auto-fix, not needs-user",
+      "prompt": "You are Claude running the /brief skill. The pending-insights.json contains the following new insight (surfaced_at is null):\n\n{\n  \"id\": \"test-003\",\n  \"urgency\": \"green\",\n  \"source\": \"daily-analyzer\",\n  \"title\": \"Google Slides API unlocks presentation-as-code workflow\",\n  \"body\": \"The Slides API is accessible via existing GCP credentials. Skill-generated artifacts could go directly into presentable format.\",\n  \"action\": \"needs-user: Consider whether a presentation-generation skill would save time for recurring needs like Show and Tell.\",\n  \"surfaced_at\": null\n}\n\nDemonstrate your step 3B reclassification check for this insight.",
+      "files": [],
+      "expectations": [
+        {
+          "criterion": "reclassifies-to-auto-fix",
+          "description": "Reclassifies this insight from needs-user to auto-fix — creating a skill is within Claude's autonomous capability regardless of the 'consider whether' phrasing in the action text",
+          "required": true
+        },
+        {
+          "criterion": "ignores-tentative-phrasing",
+          "description": "Does not treat 'consider whether' as a decision gate that requires user input — recognises it as phrasing, not a capability boundary",
+          "required": true
+        },
+        {
+          "criterion": "does-not-ask-user-first",
+          "description": "Does not present this to the user as a needs-user item asking 'should I build the skill?' — proceeds as auto-fix",
+          "required": true
+        }
+      ]
+    }
+  ]
+}
