@@ -33,6 +33,9 @@ STALE_NO_REVIEWER_DAYS = 3
 STALE_UNTOUCHED_DAYS = 5
 STALE_FAILED_PIPELINE_HOURS = 24
 RECENTLY_MERGED_DAYS = 7
+WATCHED_LOOKBACK_HOURS = 24
+MAX_WATCHED_MRS = 20
+MY_REPOS_FILE = SENSORS_DIR / "gitlab-my-repos.json"
 
 
 def require_env(*names: str) -> dict[str, str]:
@@ -128,6 +131,97 @@ def is_stale(mr: dict, now: datetime) -> bool:
     return False
 
 
+def _load_watched_repos() -> list[dict]:
+    if MY_REPOS_FILE.exists():
+        try:
+            return json.loads(MY_REPOS_FILE.read_text())
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return []
+
+
+def fetch_unresolved_comment_text(session: requests.Session, base_url: str, mr: dict) -> list[dict]:
+    """Fetch actual text of unresolved discussion notes."""
+    project_id = mr["project_id"]
+    mr_iid = mr["iid"]
+    try:
+        resp = session.get(
+            f"{base_url}/api/v4/projects/{project_id}/merge_requests/{mr_iid}/discussions",
+            params={"per_page": 100},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        discussions = resp.json()
+    except requests.RequestException:
+        return []
+
+    comments = []
+    for disc in discussions:
+        for note in disc.get("notes", []):
+            if note.get("resolvable") and not note.get("resolved"):
+                comments.append({
+                    "author": note.get("author", {}).get("username", ""),
+                    "text": note.get("body", "")[:300],
+                    "created_at": note.get("created_at", ""),
+                })
+    return comments
+
+
+def fetch_watched_repo_activity(session: requests.Session, base_url: str, repos: list[dict], since: str) -> list[dict]:
+    """Fetch recent MR activity from watched repos."""
+    results = []
+    for repo in repos:
+        project_id = repo["id"]
+        try:
+            resp = session.get(
+                f"{base_url}/api/v4/projects/{project_id}/merge_requests",
+                params={"state": "merged", "updated_after": since, "per_page": MAX_WATCHED_MRS},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            mrs = resp.json()
+        except requests.RequestException as e:
+            print(f"  Skipping repo {repo.get('path', project_id)}: {e}", file=sys.stderr)
+            time.sleep(0.1)
+            continue
+
+        for mr in mrs:
+            results.append({
+                "repo": repo.get("path", str(project_id)),
+                "id": mr["iid"],
+                "title": mr.get("title", ""),
+                "author": mr.get("author", {}).get("username", ""),
+                "merged_at": mr.get("merged_at", ""),
+                "web_url": mr.get("web_url", ""),
+            })
+
+        # Also check recently opened MRs
+        try:
+            resp = session.get(
+                f"{base_url}/api/v4/projects/{project_id}/merge_requests",
+                params={"state": "opened", "updated_after": since, "per_page": MAX_WATCHED_MRS},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            open_mrs = resp.json()
+        except requests.RequestException:
+            open_mrs = []
+
+        for mr in open_mrs:
+            results.append({
+                "repo": repo.get("path", str(project_id)),
+                "id": mr["iid"],
+                "title": mr.get("title", ""),
+                "author": mr.get("author", {}).get("username", ""),
+                "state": "opened",
+                "web_url": mr.get("web_url", ""),
+            })
+
+        time.sleep(0.1)
+
+    return results
+
+
 def normalize_mr(mr: dict, unresolved_threads: int, stale: bool) -> dict:
     return {
         "id": mr["iid"],
@@ -186,14 +280,20 @@ def main() -> None:
         stale = is_stale(mr, now)
         if stale:
             stale_count += 1
-        authored_normalized.append(normalize_mr(mr, unresolved, stale))
+        normalized = normalize_mr(mr, unresolved, stale)
+        # Fetch actual comment text for MRs with unresolved threads
+        if unresolved > 0:
+            normalized["unresolved_comment_text"] = fetch_unresolved_comment_text(session, base_url, mr)
+        authored_normalized.append(normalized)
         time.sleep(0.1)
 
     review_normalized = []
     for mr in review_raw:
-        # Don't double-count stale for review MRs (they are someone else's)
         unresolved = fetch_unresolved_threads(session, base_url, mr)
-        review_normalized.append(normalize_mr(mr, unresolved, False))
+        normalized = normalize_mr(mr, unresolved, False)
+        if unresolved > 0:
+            normalized["unresolved_comment_text"] = fetch_unresolved_comment_text(session, base_url, mr)
+        review_normalized.append(normalized)
         time.sleep(0.1)
 
     merged_normalized = []
@@ -206,6 +306,14 @@ def main() -> None:
             "merged_at": mr.get("merged_at", ""),
         })
 
+    # Watched repos — activity from docs/ADR/techradar repos
+    watched_repos = _load_watched_repos()
+    watched_activity = []
+    if watched_repos:
+        print(f"  → scanning {len(watched_repos)} watched repos for recent activity")
+        watched_activity = fetch_watched_repo_activity(session, base_url, watched_repos, seven_days_ago)
+        print(f"    found {len(watched_activity)} MRs in watched repos")
+
     snapshot = {
         "date": snapshot_date.isoformat(),
         "source": "gitlab",
@@ -214,11 +322,14 @@ def main() -> None:
             "review_requested": len(review_normalized),
             "stale_mrs": stale_count,
             "recently_merged": len(merged_normalized),
+            "watched_repos": len(watched_repos),
+            "watched_repo_activity": len(watched_activity),
         },
         "items": {
             "open_mrs": authored_normalized,
             "review_requested": review_normalized,
             "recently_merged": merged_normalized,
+            "watched_activity": watched_activity,
         },
     }
 
@@ -226,6 +337,7 @@ def main() -> None:
     print(f"\nSnapshot written to {output_path}")
     print(f"  {len(authored_normalized)} open MRs | {stale_count} stale | "
           f"{len(review_normalized)} reviews pending | {len(merged_normalized)} merged this week")
+    print(f"  {len(watched_activity)} updates across {len(watched_repos)} watched repos")
 
 
 def test_schema() -> int:
