@@ -43,6 +43,7 @@ REPORT_PATHS = {
     "rule_gaps": ANALYSIS_DIR / "rule-gaps.md",
     "catastrophic_lens": ANALYSIS_DIR / "catastrophic-lens-report.md",
     "work_diary": ANALYSIS_DIR / "work-diary.md",
+    "calibration": Path(Path.home() / ".claude" / "rules" / "jarvis" / "calibration.md"),
 }
 
 
@@ -322,12 +323,25 @@ If a section has no data, write "None." — do not omit the heading.
 ```
 <<<END_METRICS>>>
 
+<<<CALIBRATION>>>
+Synthesize the behavioral patterns above into <=20 imperative one-line directives for Claude.
+Format: each line starts with a verb, is a direct instruction. Present tense.
+Skip patterns already fully covered by existing CLAUDE.md rules or other rules files (e.g., "questions are reflections" is already CLAUDE.md rule 2).
+Skip patterns with evidence from only 1 session.
+Example: "When proposing a plan, present the minimal version first — expect scope narrowing within 1-2 turns."
+Example: "Ask for a concrete example when the user uses speculative language ('probably', 'I think')."
+Output raw text lines (no markdown headings, no JSON, no fences).
+<<<END_CALIBRATION>>>
+
 <<<INSIGHTS>>>
 ```json
 [
-  {"urgency": "red|orange|green", "title": "...", "body": "...", "action": "auto-fix: ...|needs-user: ..."}
+  {"urgency": "red|orange|green", "title": "...", "body": "...", "action": "auto-fix: ...|needs-user: ...", "action_payload": {"file": "/absolute/path", "op": "append|prepend|replace_section", "section": "optional heading for replace_section", "content": "the text to write"}}
 ]
 ```
+For auto-fix insights, include action_payload with structured file edit data when the fix targets a specific file.
+The field is optional — omit it for needs-user insights or when the fix is too complex for a single file edit.
+
 IMPORTANT: This is the PRIMARY output. Derive insights ONLY from session data above — not from
 the current reports. The reports are context for updating reports, not a source of insights.
 If a pattern appears in sessions, report it. If it only appears in a previous report but not
@@ -337,6 +351,7 @@ in the session data, do NOT re-surface it as an insight.
 - Each insight must answer: "What should the user do differently because of this?"
 - No artificial cap. Could be 3, could be 15, could be 25 — inspect the data and report everything that meets the bar.
 - Group recurring patterns — 5 sessions with the same issue = 1 insight not 5.
+- Agreeableness detection: scan [USER]/[CLAUDE] turn pairs for: (a) Claude proposes X → user questions X → Claude reverses to user's position with no counter-argument or new evidence cited; (b) Claude validates speculative user input ("probably", "I think") as fact without surfacing it as a hypothesis; (c) agreement language ("you're right", "great point", "that makes sense") followed by position change without new evidence. When found across 2+ sessions, surface as orange insight with format: "Claude accepted '[exact claim]' without evidence in session <id>. Should have asked: '[specific question]'."
 - Cross-reference acted-on hints — don't re-surface fixed issues.
 - action prefix rules — default is auto-fix:
   - auto-fix: Claude can execute without asking. Editing a file, adding a rule, creating a skill, writing documentation, fixing a pattern, adding a hook — all auto-fix.
@@ -406,7 +421,7 @@ def write_insights(new_insights: list[dict]) -> None:
 
     now = datetime.now(timezone.utc).isoformat()
     for insight in new_insights:
-        existing.append({
+        entry = {
             "id": f"daily-{date.today().isoformat()}-{len(existing)}",
             "created_at": now,
             "surfaced_at": None,
@@ -415,7 +430,10 @@ def write_insights(new_insights: list[dict]) -> None:
             "title": insight.get("title", ""),
             "body": insight.get("body", ""),
             "action": insight.get("action", ""),
-        })
+        }
+        if insight.get("action_payload"):
+            entry["action_payload"] = insight["action_payload"]
+        existing.append(entry)
 
     tmp = INSIGHTS_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(existing, indent=2))
@@ -510,14 +528,17 @@ def main() -> None:
         "rule_gaps": "RULE_GAPS",
         "catastrophic_lens": "CATASTROPHIC_LENS",
         "work_diary": "WORK_DIARY",
+        "calibration": "CALIBRATION",
     }
     for report_key, marker in section_map.items():
         content = extract_section(raw, marker)
         if content:
             path = REPORT_PATHS[report_key]
             path.parent.mkdir(parents=True, exist_ok=True)
-            # Timestamped version
-            ts_path = path.with_suffix(f".{ts}.md")
+            # Timestamped backup — always in backups dir to avoid polluting rules/
+            backup_dir = ANALYSIS_DIR / "backups"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            ts_path = backup_dir / f"{path.stem}.{ts}.md"
             ts_path.write_text(content)
             # Fixed path for consumers (statusline, /brief, coaching.md)
             shutil.copy2(str(ts_path), str(path))

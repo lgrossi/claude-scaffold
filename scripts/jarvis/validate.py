@@ -65,7 +65,8 @@ def main() -> int:
     for script in ["session-processor.py", "daily-analyzer.py",
                     "calendar-snapshot.py", "slack-snapshot.py",
                     "slack_tokens.py", "gitlab-snapshot.py", "gdocs-snapshot.py",
-                    "jira-snapshot.py", "confluence-snapshot.py"]:
+                    "jira-snapshot.py", "confluence-snapshot.py",
+                    "auto-fix.py"]:
         path = SCRIPTS / script
         check("scripts", script, path.exists() and os.access(path, os.R_OK))
 
@@ -110,6 +111,11 @@ def main() -> int:
 
     check("reports", "active-strategies.json",
           (MEMORY / "active-strategies.json").exists())
+
+    calibration = Path.home() / ".claude" / "rules" / "jarvis" / "calibration.md"
+    check("reports", "calibration.md",
+          calibration.exists() and calibration.stat().st_size > 0,
+          f"{calibration.stat().st_size // 1024}KB" if calibration.exists() and calibration.stat().st_size > 0 else "missing/empty")
     if (MEMORY / "active-strategies.json").exists():
         try:
             strategies = json.loads((MEMORY / "active-strategies.json").read_text())
@@ -260,6 +266,27 @@ def main() -> int:
     for f in stale_files:
         check("stale", f"no stale {f.name}", not f.exists(),
               "should be deleted" if f.exists() else "", critical=False)
+
+    # ── 11. Auto-Fix Pipeline ──────────────────────────────────
+    section("11. Auto-Fix Pipeline")
+    auto_fix_log = MEMORY / "auto-fix-log.md"
+    check("auto-fix", "auto-fix-log.md exists",
+          auto_fix_log.exists(),
+          f"{auto_fix_log.stat().st_size // 1024}KB" if auto_fix_log.exists() else "no runs yet",
+          critical=False)
+
+    auto_fix_service = Path.home() / ".config" / "systemd" / "user" / "jarvis-auto-fix.service"
+    check("auto-fix", "jarvis-auto-fix.service exists",
+          auto_fix_service.exists(),
+          critical=False)
+    if auto_fix_service.exists():
+        service_content = auto_fix_service.read_text()
+        check("auto-fix", "service uses --dry-run default",
+              "--dry-run" in service_content,
+              critical=False)
+        check("auto-fix", "service has After=jarvis-daily-analyzer",
+              "After=jarvis-daily-analyzer.service" in service_content,
+              critical=False)
 
     # ── Summary ───────────────────────────────────────────────────
     print(f"\n{BOLD}{'─' * 60}{RESET}")

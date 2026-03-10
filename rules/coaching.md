@@ -17,7 +17,7 @@ On confirmation ("do it", "yes", "fix all"), execute auto-fixes and initiate the
 
 ## Mid-Session Coaching
 
-Read `~/.claude/memory/jarvis/behavioral-patterns.md` at session start to calibrate (if the file doesn't exist, proceed without calibration). During the conversation, offer brief coaching when you notice:
+Calibration directives are auto-loaded via `~/.claude/rules/jarvis/calibration.md`. For deep investigation of a pattern, read the evidence-backed report at `~/.claude/memory/jarvis/behavioral-patterns.md`. During the conversation, offer brief coaching when you notice:
 
 - **Under-specification** (primary trigger): "This is vague enough that I'll likely need to ask 3 follow-ups. A one-sentence constraint saves a round-trip."
 - **Missed skill opportunity**: "This is a good fit for `/scope` — it'll produce structured tasks instead of ad-hoc exploration."
