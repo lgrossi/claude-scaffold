@@ -7,7 +7,7 @@ Observes your Claude Code sessions, finds recurring patterns, and surfaces actio
 ```
 NIGHTLY (Python, no LLM, seconds)
   Session JSONLs → session compacts (structured summaries)
-  Calendar / AFK / Slack sensors → daily snapshots
+  Calendar / Slack sensors → daily snapshots
 
 WEEKLY (one Opus 1M call, ~10min)
   Reads all session key lines → produces:
@@ -63,13 +63,9 @@ Create user timers for each component:
 # jarvis-calendar.timer: OnCalendar=*-*-* 06:00:00
 # jarvis-calendar.service: uv run ~/.claude/scripts/jarvis/calendar-snapshot.py
 
-# ActivityWatch summary — daily
-# jarvis-activitywatch.timer: OnCalendar=*-*-* 00:05:00
-# jarvis-activitywatch.service: uv run ~/.claude/scripts/jarvis/activitywatch-summary.py
-
-# Slack health check — hourly
-# jarvis-slack.timer: OnCalendar=*-*-* *:00:00
-# jarvis-slack.service: uv run ~/.claude/scripts/jarvis/slack-health-check.py
+# Slack snapshot — daily
+# jarvis-slack-snapshot.timer: OnCalendar=*-*-* 06:15:00
+# jarvis-slack-snapshot.service: uv run ~/.claude/scripts/jarvis/slack-snapshot.py
 ```
 
 Each service should:
@@ -88,9 +84,7 @@ gcloud auth application-default login \
 ```
 Filter calendars with `JARVIS_CALENDAR_FILTER=you@company.com,Team Calendar`.
 
-**ActivityWatch** — install from [activitywatch.net](https://activitywatch.net/). No config needed.
-
-**Slack** — set `SLACK_XOXC_TOKEN` and `SLACK_XOXD_TOKEN` (browser session tokens). See `rules/mollie/slack.md` for extraction steps.
+**Slack** — tokens are automatically extracted from Chromium's cookie store by `slack_tokens.py`. See `rules/mollie/slack.md` for details.
 
 ## Configuration
 
@@ -135,8 +129,8 @@ scripts/jarvis/
   session-processor.py    # Nightly compactor (no LLM)
   daily-analyzer.py       # Weekly analyzer (Opus 1M)
   calendar-snapshot.py    # Calendar sensor
-  activitywatch-summary.py # AFK sensor
-  slack-health-check.py   # Slack token monitor
+  slack-snapshot.py       # Slack channel snapshot
+  slack_tokens.py         # Slack token extractor
   validate.py             # Pipeline validator
   docs/
     report-prompts.md     # Analysis architecture docs

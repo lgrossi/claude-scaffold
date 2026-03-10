@@ -107,6 +107,18 @@ def load_calendar_sensor() -> dict | None:
     return None
 
 
+def load_sensor(name: str) -> dict | None:
+    for offset in [0, 1]:
+        d = (date.today() - timedelta(days=offset)).isoformat()
+        path = SENSORS_DIR / f"{name}-{d}.json"
+        if path.exists():
+            try:
+                return json.loads(path.read_text())
+            except Exception:
+                continue
+    return None
+
+
 def load_file_if_exists(path: Path) -> str:
     if path.exists():
         return path.read_text()
@@ -146,7 +158,7 @@ def build_session_key_lines(compacts: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def build_prompt(compacts: list[dict], acted: list[dict], calendar: dict | None, metrics: list[dict]) -> str:
+def build_prompt(compacts: list[dict], acted: list[dict], calendar: dict | None, slack: dict | None, metrics: list[dict]) -> str:
     parts = []
     parts.append("""You are Jarvis. Your task is to analyze session data and produce output in a STRICT format.
 
@@ -173,6 +185,19 @@ Now here is the data to analyze:
         deep_work = analysis.get("deep_work_days", [])
         if deep_work:
             parts.append(f"  Deep work days (<1h meetings): {', '.join(sorted(deep_work))}")
+        parts.append("")
+
+    if slack:
+        s = slack.get("summary", {})
+        parts.append(f"Slack (yesterday): {s.get('mentions', 0)} mentions, "
+                     f"{s.get('my_threads', 0)} threads started, "
+                     f"{s.get('unanswered_threads', 0)} unanswered threads")
+        top_ch = s.get("top_channels", [])[:3]
+        if top_ch:
+            parts.append("  Top channels: " + ", ".join(c["name"] + f"({c['messages']} msgs)" for c in top_ch))
+        top_ix = s.get("top_interactions", [])[:5]
+        if top_ix:
+            parts.append("  Top interactions: " + ", ".join(i["user_name"] + f"(sent {i['sent']}, rcvd {i['received']})" for i in top_ix))
         parts.append("")
 
     if metrics:
@@ -356,14 +381,16 @@ def main() -> None:
 
     acted = load_acted_hints()
     calendar = load_calendar_sensor()
+    slack = load_sensor("slack")
     metrics = load_recent_metrics()
 
     print(f"  Sessions: {len(compacts)} (last {LOOKBACK_DAYS} days)")
     print(f"  Acted hints: {len(acted)}")
     print(f"  Calendar: {'loaded' if calendar else 'none'}")
+    print(f"  Slack: {'loaded' if slack else 'none'}")
     print(f"  Prior metrics: {len(metrics)} entries")
 
-    prompt = build_prompt(compacts, acted, calendar, metrics)
+    prompt = build_prompt(compacts, acted, calendar, slack, metrics)
     tokens = len(prompt) // 4
     print(f"  Prompt size: ~{tokens:,} tokens")
 

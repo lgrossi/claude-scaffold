@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["requests"]
+# dependencies = []
 # ///
 """
 Jarvis Validator
@@ -21,11 +21,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-import requests
-
 MEMORY = Path(os.environ.get("JARVIS_MEMORY_DIR", str(Path.home() / ".claude" / "memory" / "jarvis")))
 SCRIPTS = Path.home() / ".claude" / "scripts" / "jarvis"
-SECRETS = Path.home() / ".claude" / "secrets"
 ANALYSIS = MEMORY / "jarvis-analysis"
 
 GREEN  = "\033[38;5;114m"
@@ -66,8 +63,8 @@ def main() -> int:
     # ── 2. Scripts ────────────────────────────────────────────────
     section("2. Scripts")
     for script in ["session-processor.py", "daily-analyzer.py",
-                    "activitywatch-summary.py", "calendar-snapshot.py",
-                    "slack-health-check.py"]:
+                    "calendar-snapshot.py", "slack-snapshot.py",
+                    "slack_tokens.py"]:
         path = SCRIPTS / script
         check("scripts", script, path.exists() and os.access(path, os.R_OK))
 
@@ -153,14 +150,6 @@ def main() -> int:
     # ── 6. Sensors ────────────────────────────────────────────────
     section("6. Sensors")
 
-    # ActivityWatch
-    try:
-        resp = requests.get("http://localhost:5600/api/0/info", timeout=3)
-        check("sensors", "ActivityWatch running", resp.status_code == 200,
-              f"v{resp.json().get('version', '?')}")
-    except Exception:
-        check("sensors", "ActivityWatch running", False, critical=False)
-
     # Calendar
     adc_file = Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
     check("sensors", "Google Calendar ADC", adc_file.exists(), critical=False)
@@ -168,23 +157,14 @@ def main() -> int:
     check("sensors", "today's calendar snapshot",
           (MEMORY / "sensors" / f"calendar-{today}.json").exists(), critical=False)
 
-    # Slack
-    xoxc = os.environ.get("SLACK_XOXC_TOKEN", "")
-    xoxd = os.environ.get("SLACK_XOXD_TOKEN", "")
-    check("sensors", "Slack tokens in env", bool(xoxc and xoxd),
-          "both set" if (xoxc and xoxd) else "missing")
-    if xoxc and xoxd:
-        try:
-            resp = requests.get(
-                "https://slack.com/api/auth.test",
-                headers={"Authorization": f"Bearer {xoxc}"},
-                cookies={"d": xoxd}, timeout=5,
-            )
-            data = resp.json()
-            check("sensors", "Slack tokens valid", data.get("ok", False),
-                  data.get("user", data.get("error", "?")), critical=False)
-        except Exception as e:
-            check("sensors", "Slack tokens valid", False, str(e), critical=False)
+    # Slack token extraction
+    try:
+        sys.path.insert(0, str(SCRIPTS))
+        from slack_tokens import extract_and_validate
+        _, _, user = extract_and_validate()
+        check("sensors", "Slack tokens extractable", True, f"user: {user}", critical=False)
+    except Exception as e:
+        check("sensors", "Slack tokens extractable", False, str(e), critical=False)
 
     # ── 7. Statusline ─────────────────────────────────────────────
     section("7. Statusline")
@@ -205,8 +185,8 @@ def main() -> int:
 
     # ── 9. Systemd timers ─────────────────────────────────────────
     section("9. Systemd Timers")
-    for timer in ["jarvis-sessions", "jarvis-calendar", "jarvis-activitywatch",
-                   "jarvis-slack", "jarvis-daily-analyzer"]:
+    for timer in ["jarvis-sessions", "jarvis-calendar",
+                   "jarvis-slack-snapshot", "jarvis-daily-analyzer"]:
         try:
             result = subprocess.run(
                 ["systemctl", "--user", "is-enabled", f"{timer}.timer"],
