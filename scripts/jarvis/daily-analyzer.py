@@ -42,6 +42,7 @@ REPORT_PATHS = {
     "behavioral_patterns": MEMORY_DIR / "behavioral-patterns.md",
     "rule_gaps": ANALYSIS_DIR / "rule-gaps.md",
     "catastrophic_lens": ANALYSIS_DIR / "catastrophic-lens-report.md",
+    "work_diary": ANALYSIS_DIR / "work-diary.md",
 }
 
 
@@ -95,18 +96,6 @@ def load_recent_metrics(n: int = 4) -> list[dict]:
         return []
 
 
-def load_calendar_sensor() -> dict | None:
-    for offset in [0, 1]:
-        d = (date.today() - timedelta(days=offset)).isoformat()
-        path = SENSORS_DIR / f"calendar-{d}.json"
-        if path.exists():
-            try:
-                return json.loads(path.read_text())
-            except Exception:
-                continue
-    return None
-
-
 def load_sensor(name: str) -> dict | None:
     for offset in [0, 1]:
         d = (date.today() - timedelta(days=offset)).isoformat()
@@ -158,7 +147,7 @@ def build_session_key_lines(compacts: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def build_prompt(compacts: list[dict], acted: list[dict], calendar: dict | None, slack: dict | None, metrics: list[dict]) -> str:
+def build_prompt(compacts: list[dict], acted: list[dict], metrics: list[dict], **sensors) -> str:
     parts = []
     parts.append("""You are Jarvis. Your task is to analyze session data and produce output in a STRICT format.
 
@@ -178,6 +167,7 @@ Now here is the data to analyze:
             parts.append(f"  - [{a.get('acted_at', '?')[:10]}] {a.get('hint', '')[:100]}")
         parts.append("")
 
+    calendar = sensors.get("calendar")
     if calendar:
         analysis = calendar.get("analysis", {})
         parts.append(f"Calendar: {analysis.get('total_events', 0)} events next 14 days, "
@@ -187,6 +177,7 @@ Now here is the data to analyze:
             parts.append(f"  Deep work days (<1h meetings): {', '.join(sorted(deep_work))}")
         parts.append("")
 
+    slack = sensors.get("slack")
     if slack:
         s = slack.get("summary", {})
         parts.append(f"Slack (yesterday): {s.get('mentions', 0)} mentions, "
@@ -198,6 +189,58 @@ Now here is the data to analyze:
         top_ix = s.get("top_interactions", [])[:5]
         if top_ix:
             parts.append("  Top interactions: " + ", ".join(i["user_name"] + f"(sent {i['sent']}, rcvd {i['received']})" for i in top_ix))
+        parts.append("")
+
+    gitlab = sensors.get("gitlab")
+    if gitlab:
+        g = gitlab.get("summary", {})
+        parts.append(f"GitLab (yesterday): {g.get('open_mrs', 0)} open MRs, "
+                     f"{g.get('stale_mrs', 0)} stale, "
+                     f"{g.get('review_requested', 0)} pending reviews, "
+                     f"{g.get('recently_merged', 0)} merged this week")
+        open_mrs = gitlab.get("items", {}).get("open_mrs", [])
+        drafts = sum(1 for mr in open_mrs if mr.get("draft"))
+        with_threads = [mr for mr in open_mrs if mr.get("unresolved_threads", 0) > 0]
+        if drafts:
+            parts.append(f"  Drafts: {drafts}")
+        if with_threads:
+            parts.append("  Unresolved threads: " + ", ".join(
+                f"!{mr['id']}({mr['unresolved_threads']})" for mr in with_threads[:5]
+            ))
+        parts.append("")
+
+    gdocs = sensors.get("gdocs")
+    if gdocs:
+        s = gdocs.get("summary", {})
+        parts.append(f"Google Docs (last {gdocs.get('lookback_hours', 24)}h): "
+                     f"{s.get('total_files', 0)} modified files, "
+                     f"{s.get('total_unresolved_comments', 0)} unresolved comments")
+        by_type = s.get("by_type", {})
+        if by_type:
+            parts.append("  By type: " + ", ".join(f"{t}({n})" for t, n in sorted(by_type.items())))
+        cal_matched = s.get("presentations_matched_to_calendar", 0)
+        if cal_matched:
+            parts.append(f"  Presentations matched to calendar events: {cal_matched}")
+        parts.append("")
+
+    jira = sensors.get("jira")
+    if jira:
+        s = jira.get("summary", {})
+        parts.append(f"Jira: {s.get('open_issues', 0)} open issues, "
+                     f"{s.get('stale_issues', 0)} stale")
+        sprint_name = s.get("sprint_name")
+        if sprint_name:
+            parts.append(f"  Sprint: {sprint_name} | "
+                         f"{s.get('sprint_days_remaining', '?')}d remaining | "
+                         f"{s.get('sprint_completion_pct', '?')}% done")
+        parts.append("")
+
+    confluence = sensors.get("confluence")
+    if confluence:
+        s = confluence.get("summary", {})
+        parts.append(f"Confluence: {s.get('my_pages', 0)} owned pages, "
+                     f"{s.get('watched_pages', 0)} watched, "
+                     f"{s.get('unresolved_comments', 0)} unresolved comments")
         parts.append("")
 
     if metrics:
@@ -257,6 +300,21 @@ Bad: "Ship MR !3 before Friday" — that's a task.
 Good: "Shift from building AI tools to demonstrating organizational impact" — that's a direction.
 Evaluate previous strategies — keep if still relevant, replace if trajectory shifted.
 <<<END_STRATEGIES>>>
+
+<<<WORK_DIARY>>>
+Write a concise work diary entry in markdown for today. Synthesize from ALL sensor data above.
+Sections:
+## Shipped
+MRs merged, Jira tickets closed/resolved this period.
+## In Progress
+Active MRs (with status: draft/review/pipeline), active Jira tickets.
+## Communications
+Slack threads participated in, review comments given/received, Confluence activity.
+## Blocked/Stale
+Stale MRs, stale Jira tickets, unanswered threads, unresolved comments.
+
+If a section has no data, write "None." — do not omit the heading.
+<<<END_WORK_DIARY>>>
 
 <<<METRICS>>>
 ```json
@@ -380,17 +438,18 @@ def main() -> None:
         return
 
     acted = load_acted_hints()
-    calendar = load_calendar_sensor()
-    slack = load_sensor("slack")
     metrics = load_recent_metrics()
+    sensor_names = ["calendar", "slack", "gitlab", "jira", "confluence", "gdocs"]
+    sensor_data = {name: load_sensor(name) for name in sensor_names}
 
     print(f"  Sessions: {len(compacts)} (last {LOOKBACK_DAYS} days)")
     print(f"  Acted hints: {len(acted)}")
-    print(f"  Calendar: {'loaded' if calendar else 'none'}")
-    print(f"  Slack: {'loaded' if slack else 'none'}")
+    for name in sensor_names:
+        label = {"gdocs": "Google Docs"}.get(name, name.title())
+        print(f"  {label}: {'loaded' if sensor_data[name] else 'none'}")
     print(f"  Prior metrics: {len(metrics)} entries")
 
-    prompt = build_prompt(compacts, acted, calendar, slack, metrics)
+    prompt = build_prompt(compacts, acted, metrics, **{k: v for k, v in sensor_data.items() if v is not None})
     tokens = len(prompt) // 4
     print(f"  Prompt size: ~{tokens:,} tokens")
 
@@ -450,6 +509,7 @@ def main() -> None:
         "behavioral_patterns": "BEHAVIORAL_PATTERNS",
         "rule_gaps": "RULE_GAPS",
         "catastrophic_lens": "CATASTROPHIC_LENS",
+        "work_diary": "WORK_DIARY",
     }
     for report_key, marker in section_map.items():
         content = extract_section(raw, marker)

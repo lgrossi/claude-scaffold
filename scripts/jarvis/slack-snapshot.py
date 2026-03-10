@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["requests"]
+# dependencies = ["pycookiecheat", "requests"]
 # ///
 """
 Jarvis: Slack Daily Snapshot
@@ -46,8 +46,15 @@ def make_api(xoxc: str, xoxd: str):
         while True:
             if cursor:
                 params["cursor"] = cursor
-            resp = session.get(f"https://slack.com/api/{method}", params=params, timeout=15)
-            data = resp.json()
+            for attempt in range(3):
+                resp = session.get(f"https://slack.com/api/{method}", params=params, timeout=15)
+                data = resp.json()
+                if data.get("error") == "ratelimited":
+                    wait = int(resp.headers.get("Retry-After", 5))
+                    print(f"  Rate limited on {method}, waiting {wait}s (attempt {attempt + 1}/3)")
+                    time.sleep(wait)
+                    continue
+                break
             if not data.get("ok"):
                 raise RuntimeError(f"Slack API {method} failed: {data.get('error', 'unknown')}")
             all_items.append(data)

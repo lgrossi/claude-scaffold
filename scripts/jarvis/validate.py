@@ -64,7 +64,8 @@ def main() -> int:
     section("2. Scripts")
     for script in ["session-processor.py", "daily-analyzer.py",
                     "calendar-snapshot.py", "slack-snapshot.py",
-                    "slack_tokens.py"]:
+                    "slack_tokens.py", "gitlab-snapshot.py", "gdocs-snapshot.py",
+                    "jira-snapshot.py", "confluence-snapshot.py"]:
         path = SCRIPTS / script
         check("scripts", script, path.exists() and os.access(path, os.R_OK))
 
@@ -95,13 +96,17 @@ def main() -> int:
         "catastrophic-lens-report.md": ANALYSIS / "catastrophic-lens-report.md",
     }
     for name, path in report_files.items():
-        exists = path.exists() and path.stat().st_size > 0
-        check("reports", name, exists,
-              f"{path.stat().st_size // 1024}KB" if exists else "missing/empty")
-        # Check timestamped version exists alongside
-        ts_files = list(path.parent.glob(f"{path.stem}.*.md"))
-        check("reports", f"{path.stem} has timestamped version",
-              len(ts_files) > 0, f"{len(ts_files)} found", critical=False)
+        ts_files = sorted(path.parent.glob(f"{path.stem}.*.md"))
+        bare_exists = path.exists() and path.stat().st_size > 0
+        latest = ts_files[-1] if ts_files else None
+        has_any = bare_exists or latest is not None
+        if bare_exists:
+            note = f"{path.stat().st_size // 1024}KB"
+        elif latest:
+            note = f"{latest.name} ({latest.stat().st_size // 1024}KB)"
+        else:
+            note = "missing/empty"
+        check("reports", name, has_any, note)
 
     check("reports", "active-strategies.json",
           (MEMORY / "active-strategies.json").exists())
@@ -151,11 +156,44 @@ def main() -> int:
     section("6. Sensors")
 
     # Calendar
+    env_file = Path.home() / ".config" / "jarvis" / "env"
+    check("sensors", "jarvis env file", env_file.exists(),
+          "~/.config/jarvis/env (for systemd)" if not env_file.exists() else "")
     adc_file = Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
     check("sensors", "Google Calendar ADC", adc_file.exists(), critical=False)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     check("sensors", "today's calendar snapshot",
           (MEMORY / "sensors" / f"calendar-{today}.json").exists(), critical=False)
+
+    # GitLab token
+    gitlab_token = os.environ.get("GITLAB_TOKEN")
+    check("sensors", "GITLAB_TOKEN set", bool(gitlab_token), critical=False)
+    check("sensors", "today's gitlab snapshot",
+          (MEMORY / "sensors" / f"gitlab-{today}.json").exists(), critical=False)
+
+    # Atlassian (Jira + Confluence) token
+    jira_url = os.environ.get("JIRA_URL", "")
+    jira_user = os.environ.get("JIRA_USERNAME", "")
+    jira_token = os.environ.get("JIRA_API_TOKEN", "")
+    check("sensors", "JIRA_URL set", bool(jira_url), critical=False)
+    check("sensors", "JIRA_API_TOKEN set", bool(jira_token), critical=False)
+    if jira_url and jira_user and jira_token:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"{jira_url}/rest/api/2/myself",
+                headers={"Authorization": "Basic " + __import__("base64").b64encode(f"{jira_user}:{jira_token}".encode()).decode()},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+                check("sensors", "Atlassian auth valid", True,
+                      f"user: {data.get('displayName', '?')}", critical=False)
+        except Exception as e:
+            check("sensors", "Atlassian auth valid", False, str(e)[:80], critical=False)
+    check("sensors", "today's jira snapshot",
+          (MEMORY / "sensors" / f"jira-{today}.json").exists(), critical=False)
+    check("sensors", "today's confluence snapshot",
+          (MEMORY / "sensors" / f"confluence-{today}.json").exists(), critical=False)
 
     # Slack token extraction
     try:
@@ -186,7 +224,9 @@ def main() -> int:
     # ── 9. Systemd timers ─────────────────────────────────────────
     section("9. Systemd Timers")
     for timer in ["jarvis-sessions", "jarvis-calendar",
-                   "jarvis-slack-snapshot", "jarvis-daily-analyzer"]:
+                   "jarvis-slack-snapshot", "jarvis-gitlab-snapshot",
+                   "jarvis-gdocs-snapshot", "jarvis-jira-snapshot",
+                   "jarvis-confluence-snapshot", "jarvis-daily-analyzer"]:
         try:
             result = subprocess.run(
                 ["systemctl", "--user", "is-enabled", f"{timer}.timer"],
