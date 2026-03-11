@@ -39,6 +39,7 @@ paste-cache/
 plans/
 stats-cache.json
 tasks/
+usage-data/
 teams/
 backups/
 /plugins/
@@ -61,4 +62,5 @@ tools/target/
 
 # Jarvis runtime data (generated, machine-specific)
 memory/jarvis/
+memory/cost-report-*.json
 secrets/

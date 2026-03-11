@@ -244,6 +244,39 @@ Now here is the data to analyze:
                      f"{s.get('unresolved_comments', 0)} unresolved comments")
         parts.append("")
 
+    cost_data = sensors.get("cost")
+    if cost_data:
+        s = cost_data.get("summary", {})
+        parts.append(f"Claude Code Cost (week {cost_data.get('week_start', '?')} to {cost_data.get('week_end', '?')}): "
+                     f"${s.get('total_cost_usd', 0):.2f} total, "
+                     f"${s.get('cost_per_active_day', 0):.2f}/day, "
+                     f"{s.get('api_calls', 0)} API calls, "
+                     f"{s.get('active_days', 0)} active days")
+        if s.get("vs_baseline_pct") is not None:
+            parts.append(f"  vs baseline: {s['vs_baseline_pct']:+.1f}% (baseline ${s.get('baseline_avg_per_day', 0):.2f}/day)")
+        target = s.get("target_per_day", 42.86)
+        if s.get("on_target"):
+            parts.append(f"  Status: ON TARGET (target ${target:.0f}/day)")
+        else:
+            parts.append(f"  Status: ${s.get('gap_per_day', 0):.0f}/day OVER target (target ${target:.0f}/day)")
+        breakdown = cost_data.get("cost_breakdown_usd", {})
+        if breakdown:
+            total = s.get("total_cost_usd", 1) or 1
+            parts.append("  Breakdown: " + ", ".join(
+                f"{k} ${v:.2f} ({v/total*100:.0f}%)" for k, v in breakdown.items()
+            ))
+        by_model = cost_data.get("by_model", {})
+        if by_model:
+            parts.append("  By model: " + ", ".join(
+                f"{m} {v['calls']} calls ${v['cost_usd']:.2f}" for m, v in by_model.items()
+            ))
+        top = cost_data.get("top_projects", {})
+        if top:
+            parts.append("  Top projects: " + ", ".join(
+                f"{p} ${v['cost_usd']:.2f}" for p, v in list(top.items())[:5]
+            ))
+        parts.append("")
+
     if metrics:
         parts.append("Recent metrics trend:")
         for m in metrics[-3:]:
@@ -457,7 +490,7 @@ def main() -> None:
 
     acted = load_acted_hints()
     metrics = load_recent_metrics()
-    sensor_names = ["calendar", "slack", "gitlab", "jira", "confluence", "gdocs"]
+    sensor_names = ["calendar", "slack", "gitlab", "jira", "confluence", "gdocs", "cost"]
     sensor_data = {name: load_sensor(name) for name in sensor_names}
 
     print(f"  Sessions: {len(compacts)} (last {LOOKBACK_DAYS} days)")
