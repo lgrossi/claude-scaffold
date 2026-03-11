@@ -4,7 +4,9 @@
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_TASK_LIST_ID": "lucas-experimentation",
     "ENABLE_LSP_TOOL": "1",
-    "GIT_USERNAME": "lucas"
+    "GIT_USERNAME": "lucas",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
+    "ENABLE_TOOL_SEARCH": "auto:5"
   },
   "includeCoAuthoredBy": false,
   "permissions": {
@@ -33,6 +35,26 @@
             "command": "python3 ~/.claude/hooks/check-slack-cookie.py"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/lgrossi/.claude/hooks/rtk-rewrite.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ct tool compaction-recovery"
+          }
+        ]
       }
     ]
   },
@@ -51,7 +73,8 @@
     "mdp@mollie-claude-plugins": true,
     "pubsub@mollie-claude-plugins": true,
     "skills-forger@mollie-claude-plugins": true,
-    "product@mollie-claude-plugins": true
+    "product@mollie-claude-plugins": true,
+    "skill-creator@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "local": {
