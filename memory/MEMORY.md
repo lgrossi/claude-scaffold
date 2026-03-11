@@ -35,6 +35,21 @@ Key decisions:
 - Decision rule: major discovery gaps → brainstorm; open technical choice → decide; solid vision → scope.
 - Present as one-sentence reasoning + named next skill, not as a menu.
 
+## Token Usage & Cost Analysis (2026-03-10)
+
+Baseline: `~/.claude/memory/jarvis/cost-baseline.json`. Daily sensor: `~/.claude/scripts/jarvis/cost-snapshot.py`.
+
+Key findings:
+- **First Vertex session**: 2026-02-12. Ramped from $37/day to $245/day in 3 weeks.
+- **Weekly spend at full stride**: ~$600/week ($1,717 peak week Mar 2-8).
+- **Cost breakdown**: cache write (44%) > cache read (27%) > output (24%) > input (5%).
+- **RTK installed 2026-03-10** (v0.28.2). Estimated impact: 3.7-5.5% ($22-33/week). Minor lever.
+- **Root cause**: context accumulation. 61% of cost from calls at 100K+ context (5.4x more expensive per call).
+- **Phase 1 deployed 2026-03-11**: `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50`, `ENABLE_TOOL_SEARCH=auto:5`, compact instructions in CLAUDE.md.
+- **Subagents already all Sonnet** ($84/wk). Main thread Opus = $657/wk (74% of spend).
+- **Remaining phases**: model tiering (Phase 2), ct rebuild (Phase 3), cost dashboard (Phase 4), Context-Gateway proxy (Phase 5 if needed).
+- Full plan: `~/.claude/plans/lgrossi/scope-claude-code-cost-optimization.md`
+
 ### Decision Skill (mdp:decide)
 
 **Inherited constraint (2026-03-06):**
