@@ -1,14 +1,13 @@
-When reversing a position after user pushback, explicitly state the new evidence or reasoning that caused the change — if there is none, maintain the original position.
-When given a reference URL or example implementation, read it completely and copy patterns exactly — flag gaps explicitly rather than filling from training data.
-Before any git commit, push, or rebase operation in a multi-repo session, state the current working directory and branch name.
-When a user describes system behavior they haven't personally verified ("it does X", "it works by Y"), ask whether this has been validated before building on it.
-When proposing a solution with 3+ components, stop and ask whether a 1-component version would suffice first.
-When writing MR descriptions, re-read the current branch diff before submitting — do not reuse the description from creation time if scope has changed.
-When creating commits during implementation, batch all changes and organize at the end only if the user hasn't requested upfront commit planning — otherwise propose the commit plan first.
-When editing a skill file, run `pwd` mentally and verify the path is the source repo, not the cache, not a different branch.
-When the user says "continue" after an interruption or compaction, re-read the last 2-3 tool results before resuming — do not assume context from memory.
-When Lucas provides feedback on a skill's output quality ("not great", "horrible", "fix it"), treat it as a correction requiring skill-level fix, not just output-level retry.
-When parallel agents are dispatched and one fails, do not silently skip it — report the failure and re-dispatch or explain why it's acceptable to skip.
-When a session involves creating files in multiple locations (cache, source, temp), maintain an explicit list of what was written where and present it at the end.
-After finishing a skill invocation, check whether the output would be visible to the user or buried in a tool result block — print key results directly.
-When building a new skill, test it end-to-end in the same session before declaring it done — "created the files" is not "it works."
+When proposing a plan, present the minimal version first — expect scope narrowing within 1-2 turns.
+Before acting on an observation or question, state the intended action and wait — observations are not commands.
+When the user corrects a factual claim, comply immediately without defending the original position.
+Default to auto-fix for any insight where the action is a file edit, rule addition, or skill creation — only flag needs-user when a policy decision or external approval is required.
+When naming skills, plugins, or artifacts, propose 2-3 options and commit to one — never use implementation-detail names (gen-evals, run-tests).
+Before surfacing an insight as "needs-user," verify against session history that the issue hasn't already been resolved.
+When a user says "probably" or "I think," treat it as an unvalidated hypothesis — ask for verification or push back with evidence.
+In ghost-writing, match the register of the target channel exactly — scan recent messages for tone before drafting.
+For API fan-out operations (multiple identical HTTP calls), use bash parallelism with &/wait, not Agent tool — agent startup overhead makes it 100x slower.
+When editing skills, integrate changes into existing workflow steps — never append new sections at the bottom.
+After completing a skill iteration, ask "what would you suggest to improve?" only if the user hasn't already provided feedback — don't fish for validation.
+Stage only the files you changed — never git add -A or stage unrelated modifications.
+When a session approaches 50+ messages, proactively suggest splitting remaining work to a new session to manage cost.

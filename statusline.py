@@ -42,6 +42,16 @@ VERSION_CACHE = "/tmp/claude-statusline-version"
 VERSION_TTL = 3600
 UPDATE_ICON = "\U000f0047"
 
+PRICING = {
+    "claude-opus": {"input": 15.0, "output": 75.0, "cache_write": 3.75, "cache_read": 0.3},
+    "claude-sonnet": {"input": 3.0, "output": 15.0, "cache_write": 0.375, "cache_read": 0.03},
+    "claude-haiku": {"input": 0.8, "output": 4.0, "cache_write": 0.10, "cache_read": 0.008},
+}
+COST_CACHE = "/tmp/claude-cost-session-{sid}"
+COST_TTL = 30
+DAILY_COST_CACHE = "/tmp/claude-cost-daily"
+DAILY_TARGET = 300 / 7
+
 
 def dot_bar(pct, width=10):
     pct = max(0, min(100, int(pct or 0)))
@@ -352,6 +362,176 @@ def beads_task(cwd, sid=""):
         return None
 
 
+def _model_pricing(model):
+    model = (model or "").lower()
+    for prefix, rates in PRICING.items():
+        if prefix in model:
+            return rates
+    return PRICING["claude-opus"]
+
+
+def find_session_jsonl(sid):
+    if not sid:
+        return None
+    path_cache = f"/tmp/claude-cost-path-{sid}"
+    cached = read_cache(path_cache, 3600)
+    if cached:
+        p = Path(cached)
+        if p.exists():
+            return p
+    matches = list(Path.home().glob(f".claude/projects/*/{sid}.jsonl"))
+    if not matches:
+        return None
+    result = matches[0]
+    write_cache(path_cache, str(result))
+    return result
+
+
+def compute_session_cost(sid):
+    if not sid:
+        return None
+    cache_path = COST_CACHE.format(sid=sid)
+    cached_raw = read_cache(cache_path, COST_TTL)
+    if cached_raw:
+        try:
+            return json.loads(cached_raw).get("cost")
+        except Exception:
+            pass
+
+    state = {}
+    try:
+        with open(cache_path) as f:
+            state = json.loads(f.read())
+    except Exception:
+        pass
+
+    jsonl_path = find_session_jsonl(sid)
+    if not jsonl_path:
+        return state.get("cost")
+
+    session_dir = jsonl_path.parent / sid
+
+    def _scan_new(filepath, offset):
+        cost = 0.0
+        try:
+            file_size = filepath.stat().st_size
+            if file_size < offset:
+                offset = 0
+            with open(filepath, "rb") as f:
+                f.seek(offset)
+                for raw in f:
+                    try:
+                        entry = json.loads(raw)
+                    except Exception:
+                        continue
+                    if entry.get("type") != "assistant":
+                        continue
+                    msg = entry.get("message") or {}
+                    usage = entry.get("usage") or msg.get("usage") or {}
+                    model = entry.get("model") or msg.get("model") or ""
+                    rates = _model_pricing(model)
+                    inp = (usage.get("input_tokens") or 0) / 1_000_000
+                    out = (usage.get("output_tokens") or 0) / 1_000_000
+                    cw = (usage.get("cache_creation_input_tokens") or 0) / 1_000_000
+                    cr = (usage.get("cache_read_input_tokens") or 0) / 1_000_000
+                    cost += (
+                        inp * rates["input"]
+                        + out * rates["output"]
+                        + cw * rates["cache_write"]
+                        + cr * rates["cache_read"]
+                    )
+                new_offset = f.tell()
+        except OSError:
+            return cost, offset
+        return cost, new_offset
+
+    main_offset = state.get("offset", 0)
+    main_cost, new_main_offset = _scan_new(jsonl_path, main_offset)
+
+    sub_offsets = state.get("sub_offsets", {})
+    sub_cost = 0.0
+    if session_dir.exists():
+        for sub_path in session_dir.glob("subagents/*.jsonl"):
+            fname = sub_path.name
+            sc, new_off = _scan_new(sub_path, sub_offsets.get(fname, 0))
+            sub_cost += sc
+            sub_offsets[fname] = new_off
+
+    total_cost = state.get("cost", 0.0) + main_cost + sub_cost
+    write_cache(cache_path, json.dumps({
+        "offset": new_main_offset,
+        "sub_offsets": sub_offsets,
+        "cost": total_cost,
+    }))
+    return total_cost
+
+
+def daily_cost() -> float:
+    cached = read_cache(DAILY_COST_CACHE, 60)
+    if cached is not None:
+        try:
+            return float(cached)
+        except ValueError:
+            pass
+
+    result = 0.0
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        sensor_path = Path.home() / ".claude" / "memory" / "jarvis" / "sensors" / f"cost-{today}.json"
+        if sensor_path.exists():
+            data = json.loads(sensor_path.read_text())
+            by_date = data.get("by_date") or {}
+            entry = by_date.get(today)
+            if entry and (entry.get("cost_usd") or 0) > 0:
+                result = float(entry["cost_usd"])
+                write_cache(DAILY_COST_CACHE, str(result))
+                return result
+    except Exception:
+        pass
+
+    # Fallback: glob today's JSONL files and sum costs using PRICING
+    try:
+        midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+        total = 0.0
+        for jsonl in Path.home().glob(".claude/projects/*/*.jsonl"):
+            try:
+                if os.stat(jsonl).st_mtime < midnight:
+                    continue
+            except OSError:
+                continue
+            try:
+                with open(jsonl, "rb") as f:
+                    for raw in f:
+                        try:
+                            entry = json.loads(raw)
+                        except Exception:
+                            continue
+                        if entry.get("type") != "assistant":
+                            continue
+                        msg = entry.get("message") or {}
+                        usage = entry.get("usage") or msg.get("usage") or {}
+                        model = entry.get("model") or msg.get("model") or ""
+                        rates = _model_pricing(model)
+                        inp = (usage.get("input_tokens") or 0) / 1_000_000
+                        out = (usage.get("output_tokens") or 0) / 1_000_000
+                        cw = (usage.get("cache_creation_input_tokens") or 0) / 1_000_000
+                        cr = (usage.get("cache_read_input_tokens") or 0) / 1_000_000
+                        total += (
+                            inp * rates["input"]
+                            + out * rates["output"]
+                            + cw * rates["cache_write"]
+                            + cr * rates["cache_read"]
+                        )
+            except OSError:
+                continue
+        result = total
+    except Exception:
+        pass
+
+    write_cache(DAILY_COST_CACHE, str(result))
+    return result
+
+
 # -- Main --
 
 
@@ -408,7 +588,14 @@ def main():
         f"{bar} {bar_col}{pct}%{RESET} {DIM}{fmt_tokens(input_tokens)}/{fmt_tokens(ctx_size)}{RESET}"
     )
     parts1.append(f"{LGRAY}󰅐 {fmt_duration(cost_data.get('total_duration_ms'))}{RESET}")
-    parts1.append(f"{DIM}󰇁 {fmt_cost(cost_data.get('total_cost_usd'))}{RESET}")
+    session_cost = compute_session_cost(sid)
+    daily = daily_cost()
+    cost_seg = f"{DIM}󰇁 {fmt_cost(session_cost)}{RESET}"
+    if daily > 0:
+        dpct = daily / DAILY_TARGET * 100
+        dcol = RED if dpct >= 100 else ORANGE if dpct >= 70 else GREEN
+        cost_seg += f"{SEP}{dcol}󰇁 {fmt_cost(daily)}{DIM}/{fmt_cost(DAILY_TARGET)}{RESET}"
+    parts1.append(cost_seg)
     sys.stdout.write(SEP.join(parts1))
 
     # === LINE 2: git | 5h quota bar | weekly quota bar | vim | agent ===

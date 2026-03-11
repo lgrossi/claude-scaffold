@@ -5,7 +5,7 @@
     "CLAUDE_CODE_TASK_LIST_ID": "lucas-experimentation",
     "ENABLE_LSP_TOOL": "1",
     "GIT_USERNAME": "lucas",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "60",
     "ENABLE_TOOL_SEARCH": "auto:5"
   },
   "includeCoAuthoredBy": false,

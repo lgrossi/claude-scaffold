@@ -28,19 +28,28 @@ PROJECTS_DIR = Path.home() / ".claude" / "projects"
 BASELINE_FILE = _memory_dir / "cost-baseline.json"
 
 PRICING = {
-    "input": 15.0,
-    "output": 75.0,
-    "cache_write": 3.75,
-    "cache_read": 0.3,
+    "claude-opus":   {"input": 15.0,  "output": 75.0,  "cache_write": 3.75,  "cache_read": 0.3},
+    "claude-sonnet": {"input": 3.0,   "output": 15.0,  "cache_write": 0.375, "cache_read": 0.03},
+    "claude-haiku":  {"input": 0.8,   "output": 4.0,   "cache_write": 0.10,  "cache_read": 0.008},
 }
+PRICING_DEFAULT = PRICING["claude-opus"]
 
 
-def cost(tokens: dict) -> float:
+def _resolve_pricing(model: str) -> dict:
+    m = model.lower()
+    for key in ("haiku", "sonnet", "opus"):
+        if key in m:
+            return PRICING[f"claude-{key}"]
+    return PRICING_DEFAULT
+
+
+def cost(tokens: dict, model: str = "") -> float:
+    p = _resolve_pricing(model)
     return (
-        tokens["input"] * PRICING["input"]
-        + tokens["output"] * PRICING["output"]
-        + tokens["cache_write"] * PRICING["cache_write"]
-        + tokens["cache_read"] * PRICING["cache_read"]
+        tokens["input"] * p["input"]
+        + tokens["output"] * p["output"]
+        + tokens["cache_write"] * p["cache_write"]
+        + tokens["cache_read"] * p["cache_read"]
     ) / 1_000_000
 
 
@@ -84,26 +93,24 @@ def collect_period(start: datetime, end: datetime) -> list[dict]:
     for project_dir in PROJECTS_DIR.iterdir():
         if not project_dir.is_dir():
             continue
-        for subdir in [project_dir, project_dir / "subagents"]:
-            if not subdir.is_dir():
-                continue
-            for jsonl in subdir.glob("*.jsonl"):
-                try:
-                    mtime = datetime.fromtimestamp(jsonl.stat().st_mtime)
-                    if mtime < start - timedelta(days=1):
-                        continue
-                except OSError:
+        jsonl_files = list(project_dir.glob("*.jsonl")) + list(project_dir.glob("*/subagents/*.jsonl"))
+        for jsonl in jsonl_files:
+            try:
+                mtime = datetime.fromtimestamp(jsonl.stat().st_mtime)
+                if mtime < start - timedelta(days=1):
                     continue
-                for entry in parse_jsonl(jsonl):
-                    usage = extract_usage(entry)
-                    if not usage:
-                        continue
-                    try:
-                        ts = datetime.fromisoformat(usage["timestamp"].replace("Z", "+00:00")).replace(tzinfo=None)
-                    except (ValueError, AttributeError):
-                        continue
-                    if start <= ts < end:
-                        records.append(usage)
+            except OSError:
+                continue
+            for entry in parse_jsonl(jsonl):
+                usage = extract_usage(entry)
+                if not usage:
+                    continue
+                try:
+                    ts = datetime.fromisoformat(usage["timestamp"].replace("Z", "+00:00")).replace(tzinfo=None)
+                except (ValueError, AttributeError):
+                    continue
+                if start <= ts < end:
+                    records.append(usage)
     return records
 
 
@@ -125,15 +132,15 @@ def summarize(records: list[dict]) -> dict:
 
     total_cost = cost(totals)
     cost_breakdown = {
-        "input": round(totals["input"] * PRICING["input"] / 1_000_000, 2),
-        "output": round(totals["output"] * PRICING["output"] / 1_000_000, 2),
-        "cache_write": round(totals["cache_write"] * PRICING["cache_write"] / 1_000_000, 2),
-        "cache_read": round(totals["cache_read"] * PRICING["cache_read"] / 1_000_000, 2),
+        "input": round(totals["input"] * PRICING_DEFAULT["input"] / 1_000_000, 2),
+        "output": round(totals["output"] * PRICING_DEFAULT["output"] / 1_000_000, 2),
+        "cache_write": round(totals["cache_write"] * PRICING_DEFAULT["cache_write"] / 1_000_000, 2),
+        "cache_read": round(totals["cache_read"] * PRICING_DEFAULT["cache_read"] / 1_000_000, 2),
     }
 
     model_summary = {}
-    for m, v in sorted(by_model.items(), key=lambda x: cost(x[1]), reverse=True):
-        model_summary[m] = {"calls": v["calls"], "cost_usd": round(cost(v), 2)}
+    for m, v in sorted(by_model.items(), key=lambda x: cost(x[1], x[0]), reverse=True):
+        model_summary[m] = {"calls": v["calls"], "cost_usd": round(cost(v, m), 2)}
 
     date_summary = {}
     for d in sorted(by_date):
