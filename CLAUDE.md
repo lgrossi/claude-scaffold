@@ -10,7 +10,13 @@
 10. When saving memories, consider if a universal rule would be more useful → `~/.claude/rules/<topic>.md`
 11. Skills flow: brainstorm → scope → develop [acceptance] → review → commit. scope→develop is automatic inside /vibe.
 12. On resume after compaction: if tasks exist with `metadata.impl_team` set and status `in_progress`, re-invoke `/develop` to trigger recovery.
-13. Skill scripts use relative paths (e.g. `scripts/foo.py`). The cwd at execution time is the user's project. Before running, locate with Glob and use the absolute result.
+13. Skill scripts: use `${CLAUDE_SKILL_DIR}` in SKILL.md to reference skill-local files (scripts, references, agents). Expands to the skill's absolute directory at load time.
 14. Natural language routing: match intent against skill trigger phrases. High confidence → invoke directly. Ambiguous (2-3 candidates) → AskUserQuestion. No match → respond normally.
 15. In Mollie/work projects: every branch requires a Jira ticket — see `rules/jira.md`. Branch format: `$GIT_USERNAME/<ticket-id>-<description>`. Board: https://mollie.atlassian.net/jira/software/projects/MPM/boards/321
 16. All plans, notes, and state live in Claude's native task system — not files. Lifecycle: pending → in_progress → completed. Use `status_detail: "review"` to signal awaiting user verification before closing.
+
+@RTK.md
+
+# Compact instructions
+
+When compacting, preserve: current task IDs and status, git branch and uncommitted changes, modified file paths, key architectural decisions, acceptance criteria, and next steps. Drop verbose tool outputs and intermediate exploration results.
